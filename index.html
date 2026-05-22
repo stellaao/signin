@@ -105,7 +105,10 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 
   <div id="adminPanel">
     <h2>📊 所有簽到記錄（來自雲端）</h2>
-    <button onclick="loadCloudRecords()" style="padding:8px 16px;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-bottom:10px;">🔄 刷新</button>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button onclick="loadCloudRecords()" style="padding:8px 16px;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;">🔄 刷新</button>
+      <button onclick="exportCloudCSV()" style="padding:8px 16px;background:#34C759;color:#fff;border:none;border-radius:6px;cursor:pointer;">📥 匯出 CSV</button>
+    </div>
     <div id="adminList"></div>
   </div>
 </div>
@@ -295,22 +298,24 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   }
 
   // 載入雲端記錄（管理員用）
+  let cloudRecords = [];
+
   function loadCloudRecords() {
     const container = document.getElementById('adminList');
     container.innerHTML = '<p style="color:#856404;text-align:center;">載入中...</p>';
 
     db.ref('signin').once('value')
       .then((snapshot) => {
+        cloudRecords = [];
         if (!snapshot.exists()) {
           container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
           return;
         }
-        const records = [];
         snapshot.forEach(child => {
-          records.push(child.val());
+          cloudRecords.push(child.val());
         });
-        records.reverse();
-        container.innerHTML = records.map((r, i) => {
+        cloudRecords.reverse();
+        container.innerHTML = cloudRecords.map((r, i) => {
           return `<div class="record-item">
             <div class="r-name">${i+1}. ${r.name}</div>
             <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
@@ -322,6 +327,23 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
         console.error(e);
         container.innerHTML = '<p style="color:red;text-align:center;">載入失敗: ' + e.message + '</p>';
       });
+  }
+
+  // 匯出雲端CSV
+  function exportCloudCSV() {
+    if (cloudRecords.length === 0) {
+      alert('請先點擊「刷新」載入記錄');
+      return;
+    }
+    const csv = '\uFEFF姓名,打卡時間,打卡地點,備注\n' +
+      cloudRecords.map(r => `"${r.name}","${r.time}","${r.address}","${r.note || ''}"`).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '簽到記錄_雲端_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // 密碼解鎖管理員面板
