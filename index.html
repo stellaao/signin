@@ -85,6 +85,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   </div>
 
   <button class="btn btn-export" onclick="exportCSV()">📥 匯出 CSV</button>
+  <button class="btn btn-clear" onclick="clearRecords()">🗑️ 清除記錄</button>
 
   <div id="records"></div>
 </div>
@@ -215,6 +216,19 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+// 清除記錄
+function clearRecords() {
+  const pw = prompt('請輸入密碼以清除所有記錄：');
+  if (pw === '1119') {
+    if (confirm('⚠️ 確定要清除所有簽到記錄嗎？此操作無法恢復！')) {
+      localStorage.removeItem('signRecords');
+      loadRecords();
+      alert('✅ 記錄已清除');
+    }
+  } else if (pw !== null) {
+    alert('❌ 密碼錯誤');
+  }
+}
 
 </script>
 </body>
