@@ -111,10 +111,9 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 </div>
 
 <!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, push, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
   const firebaseConfig = {
     apiKey: "AIzaSyBw38H4pu7C5sLmI73VWieXB8veDQqKANU",
     authDomain: "signin-b4b1c.firebaseapp.com",
@@ -126,8 +125,8 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     measurementId: "G-9THKBY59HW"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
   // 初始化時間
   function updateTime() {
@@ -135,12 +134,11 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     const timeStr = now.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
     document.getElementById('time').textContent = timeStr;
   }
-  window.updateTime = updateTime;
   updateTime();
   setInterval(updateTime, 1000);
 
   // 自動定位
-  window.getLocation = function() {
+  function getLocation() {
     document.getElementById('address').textContent = '定位中...';
     document.getElementById('locationHelp').style.display = 'none';
 
@@ -195,13 +193,13 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );
-  };
+  }
 
-  window.retryLocation = function() { window.getLocation(); };
-  window.getLocation();
+  function retryLocation() { getLocation(); }
+  getLocation();
 
   // 讀取本地記錄
-  window.loadRecords = function() {
+  function loadRecords() {
     const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
     const container = document.getElementById('records');
     if (data.length === 0) {
@@ -216,11 +214,11 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
           ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
         </div>
       `).join('');
-  };
-  window.loadRecords();
+  }
+  loadRecords();
 
   // 打卡
-  window.signIn = async function() {
+  function signIn() {
     const name = document.getElementById('name').value.trim();
     const note = document.getElementById('note').value.trim();
     const status = document.getElementById('status');
@@ -249,22 +247,23 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     status.textContent = '📤 儲存中...';
     status.style.display = 'block';
 
-    try {
-      await push(ref(db, 'signin'), record);
-      status.className = 'status success';
-      status.textContent = '✅ 簽到成功！';
-    } catch (e) {
-      console.error('Firebase error:', e);
-      status.className = 'status error';
-      status.textContent = '❌ 儲存失敗：' + e.message;
-    }
+    db.ref('signin').push(record)
+      .then(() => {
+        status.className = 'status success';
+        status.textContent = '✅ 簽到成功！';
+      })
+      .catch((e) => {
+        console.error('Firebase error:', e);
+        status.className = 'status error';
+        status.textContent = '❌ 儲存失敗：' + e.message;
+      });
 
     setTimeout(() => { status.className = 'status'; status.style.display = 'none'; status.textContent = ''; }, 3000);
-    window.loadRecords();
-  };
+    loadRecords();
+  }
 
   // 匯出CSV
-  window.exportCSV = function() {
+  function exportCSV() {
     const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
     if (data.length === 0) {
       alert('暫無記錄可匯出');
@@ -279,59 +278,62 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     a.download = '簽到記錄_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }
 
   // 清除記錄
-  window.clearRecords = function() {
+  function clearRecords() {
     const pw = prompt('請輸入密碼以清除所有記錄：');
     if (pw === '1119') {
       if (confirm('⚠️ 確定要清除所有簽到記錄嗎？此操作無法恢復！')) {
         localStorage.removeItem('signRecords');
-        window.loadRecords();
+        loadRecords();
         alert('✅ 記錄已清除');
       }
     } else if (pw !== null) {
       alert('❌ 密碼錯誤');
     }
-  };
+  }
 
   // 載入雲端記錄（管理員用）
-  window.loadCloudRecords = async function() {
-    try {
-      const snapshot = await get(ref(db, 'signin'));
-      const container = document.getElementById('adminList');
-      if (!snapshot.exists()) {
-        container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
-        return;
-      }
-      const records = [];
-      snapshot.forEach(child => {
-        records.push(child.val());
+  function loadCloudRecords() {
+    const container = document.getElementById('adminList');
+    container.innerHTML = '<p style="color:#856404;text-align:center;">載入中...</p>';
+
+    db.ref('signin').once('value')
+      .then((snapshot) => {
+        if (!snapshot.exists()) {
+          container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
+          return;
+        }
+        const records = [];
+        snapshot.forEach(child => {
+          records.push(child.val());
+        });
+        records.reverse();
+        container.innerHTML = records.map((r, i) => {
+          return `<div class="record-item">
+            <div class="r-name">${i+1}. ${r.name}</div>
+            <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
+            ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
+          </div>`;
+        }).join('');
+      })
+      .catch((e) => {
+        console.error(e);
+        container.innerHTML = '<p style="color:red;text-align:center;">載入失敗: ' + e.message + '</p>';
       });
-      records.reverse();
-      container.innerHTML = records.map((r, i) => {
-        return `<div class="record-item">
-          <div class="r-name">${i+1}. ${r.name}</div>
-          <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
-          ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
-        </div>`;
-      }).join('');
-    } catch (e) {
-      console.error(e);
-      document.getElementById('adminList').innerHTML = '<p style="color:red;text-align:center;">載入失敗: ' + e.message + '</p>';
-    }
-  };
+  }
 
   // 密碼解鎖管理員面板
-  window.showAdmin = function() {
+  function showAdmin() {
     const pw = prompt('請輸入管理員密碼：');
     if (pw === '1119') {
       document.getElementById('adminPanel').style.display = 'block';
-      window.loadCloudRecords();
+      loadCloudRecords();
     }
-  };
+  }
 
-  // 3秒後嘗試顯示admin面板入口（低調）
+  // 3秒後顯示admin面板入口
   setTimeout(() => {
     const hint = document.createElement('div');
     hint.style.cssText = 'text-align:center;margin-top:20px;';
