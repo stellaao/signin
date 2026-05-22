@@ -45,6 +45,10 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 .status.loading { background: #fff3cd; color: #856404; display: block; }
 
 #map { width: 100%; height: 120px; border-radius: 8px; margin-top: 8px; display: none; background: #eee; }
+
+#adminPanel { display: none; margin-top: 20px; background: #fff; border-radius: 12px; padding: 20px; }
+#adminPanel h2 { font-size: 1rem; color: #333; margin-bottom: 10px; }
+#adminList { max-height: 300px; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -98,184 +102,236 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   <button class="btn btn-clear" onclick="clearRecords()">🗑️ 清除記錄</button>
 
   <div id="records"></div>
+
+  <div id="adminPanel">
+    <h2>📊 所有簽到記錄（來自雲端）</h2>
+    <button onclick="loadCloudRecords()" style="padding:8px 16px;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-bottom:10px;">🔄 刷新</button>
+    <div id="adminList"></div>
+  </div>
 </div>
 
-<script>
-let currentPosition = null;
-let currentAddress = '定位失敗';
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// 初始化時間
-function updateTime() {
-  const now = new Date();
-  const timeStr = now.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  document.getElementById('time').textContent = timeStr;
-}
-updateTime();
-setInterval(updateTime, 1000);
+  const firebaseConfig = {
+    apiKey: "AIzaSyBw38H4pu7C5sLmI73VWieXB8veDQqKANU",
+    authDomain: "signin-b4b1c.firebaseapp.com",
+    projectId: "signin-b4b1c",
+    storageBucket: "signin-b4b1c.firebasestorage.app",
+    messagingSenderId: "114524535002",
+    appId: "1:114524535002:web:9f993c70dc63f7e4d00de3",
+    measurementId: "G-9THKBY59HW"
+  };
 
-// 自動定位
-function getLocation() {
-  document.getElementById('address').textContent = '定位中...';
-  document.getElementById('locationHelp').style.display = 'none';
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-  // 檢查是否為安全上下文（HTTPS）
-  if (!window.isSecureContext) {
-    currentAddress = '需要 HTTPS';
-    document.getElementById('address').textContent = '⚠️ 需要 HTTPS';
-    document.getElementById('locationHelp').innerHTML = '<strong>⚠️ 需要安全連線</strong><br>定位功能需要 HTTPS 連線。<br>請確認網址以 https:// 開頭。';
-    document.getElementById('locationHelp').style.display = 'block';
-    return;
+  // 初始化時間
+  function updateTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('time').textContent = timeStr;
   }
+  window.updateTime = updateTime;
+  updateTime();
+  setInterval(updateTime, 1000);
 
-  if (!navigator.geolocation) {
-    currentAddress = '不支援定位';
-    document.getElementById('address').textContent = currentAddress;
-    return;
-  }
+  // 自動定位
+  window.getLocation = function() {
+    document.getElementById('address').textContent = '定位中...';
+    document.getElementById('locationHelp').style.display = 'none';
 
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      document.getElementById('address').textContent = `📍 ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)}`;
-      document.getElementById('locationHelp').style.display = 'none';
-      // 反向地理編碼
-      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${currentPosition.lat}&lon=${currentPosition.lng}&format=json&accept-language=zh`)
-        .then(r => r.json())
-        .then(data => {
-          const addr = data.address;
-          const parts = [];
-          if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
-          if (addr.suburb) parts.push(addr.suburb);
-          if (addr.road) parts.push(addr.road);
-          if (parts.length > 0) {
-            currentAddress = parts.join('');
-          } else if (data.display_name) {
-            currentAddress = data.display_name.split(',')[0];
-          }
-          document.getElementById('address').textContent = '📍 ' + currentAddress;
-        })
-        .catch(() => {
-          document.getElementById('address').textContent = '📍 ' + currentAddress;
-        });
-    },
-    (error) => {
-      let errorMsg = '定位失敗';
-      switch(error.code) {
-        case 1: errorMsg = '位置權限被拒絕'; break;
-        case 2: errorMsg = '位置無法取得'; break;
-        case 3: errorMsg = '定位超時'; break;
-      }
-      currentAddress = errorMsg;
-      document.getElementById('address').textContent = '⚠️ ' + errorMsg;
+    if (!window.isSecureContext) {
+      window.currentAddress = '需要 HTTPS';
+      document.getElementById('address').textContent = '⚠️ 需要 HTTPS';
+      document.getElementById('locationHelp').innerHTML = '<strong>⚠️ 需要安全連線</strong><br>定位功能需要 HTTPS 連線。<br>請確認網址以 https:// 開頭。';
       document.getElementById('locationHelp').style.display = 'block';
-    },
-    { enableHighAccuracy: true, timeout: 15000 }
-  );
-}
-
-function retryLocation() {
-  getLocation();
-}
-getLocation();
-
-// 讀取記錄
-function loadRecords() {
-  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
-  const container = document.getElementById('records');
-  if (data.length === 0) {
-    container.innerHTML = '<h2>📌 簽到記錄</h2><p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
-    return;
-  }
-  container.innerHTML = '<h2>📌 簽到記錄（共 ' + data.length + ' 筆）</h2>' + 
-    data.map((r, i) => `
-      <div class="record-item">
-        <div class="r-name">${i+1}. ${r.name}</div>
-        <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
-        ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
-      </div>
-    `).join('');
-}
-loadRecords();
-
-// Formspree endpoint
-const FORMSPREE_URL = 'https://formspree.io/f/mojbwvvb';
-
-// 打卡
-function signIn() {
-  const name = document.getElementById('name').value.trim();
-  const note = document.getElementById('note').value.trim();
-  const status = document.getElementById('status');
-
-  if (!name) {
-    status.className = 'status error';
-    status.textContent = '⚠️ 請輸入姓名';
-    setTimeout(() => status.className = 'status', 2000);
-    return;
-  }
-
-  const time = document.getElementById('time').textContent;
-  const record = { name, time, address: currentAddress, note };
-  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
-  data.unshift(record);
-  localStorage.setItem('signRecords', JSON.stringify(data));
-
-  document.getElementById('name').value = '';
-  document.getElementById('note').value = '';
-
-  // 發送到 Formspree
-  status.className = 'status loading';
-  status.textContent = '📤 儲存中...';
-  fetch(FORMSPREE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ name, time, address: currentAddress, note })
-  })
-  .then(() => {
-    status.className = 'status success';
-    status.textContent = '✅ 簽到成功！';
-    setTimeout(() => status.className = 'status', 2000);
-  })
-  .catch(() => {
-    status.className = 'status success';
-    status.textContent = '✅ 簽到成功！（離線模式）';
-    setTimeout(() => status.className = 'status', 2000);
-  });
-
-  loadRecords();
-}
-
-// 匯出CSV
-function exportCSV() {
-  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
-  if (data.length === 0) {
-    alert('暫無記錄可匯出');
-    return;
-  }
-  const csv = '\uFEFF姓名,打卡時間,打卡地點,備注\n' + 
-    data.map(r => `"${r.name}","${r.time}","${r.address}","${r.note || ''}"`).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '簽到記錄_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// 清除記錄
-function clearRecords() {
-  const pw = prompt('請輸入密碼以清除所有記錄：');
-  if (pw === '1119') {
-    if (confirm('⚠️ 確定要清除所有簽到記錄嗎？此操作無法恢復！')) {
-      localStorage.removeItem('signRecords');
-      loadRecords();
-      alert('✅ 記錄已清除');
+      return;
     }
-  } else if (pw !== null) {
-    alert('❌ 密碼錯誤');
-  }
-}
 
+    if (!navigator.geolocation) {
+      window.currentAddress = '不支援定位';
+      document.getElementById('address').textContent = currentAddress;
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        window.currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        document.getElementById('address').textContent = `📍 ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)}`;
+        document.getElementById('locationHelp').style.display = 'none';
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${currentPosition.lat}&lon=${currentPosition.lng}&format=json&accept-language=zh`)
+          .then(r => r.json())
+          .then(data => {
+            const addr = data.address;
+            const parts = [];
+            if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+            if (addr.suburb) parts.push(addr.suburb);
+            if (addr.road) parts.push(addr.road);
+            if (parts.length > 0) {
+              window.currentAddress = parts.join('');
+            } else if (data.display_name) {
+              window.currentAddress = data.display_name.split(',')[0];
+            }
+            document.getElementById('address').textContent = '📍 ' + window.currentAddress;
+          })
+          .catch(() => {
+            document.getElementById('address').textContent = '📍 ' + window.currentAddress;
+          });
+      },
+      (error) => {
+        let errorMsg = '定位失敗';
+        switch(error.code) {
+          case 1: errorMsg = '位置權限被拒絕'; break;
+          case 2: errorMsg = '位置無法取得'; break;
+          case 3: errorMsg = '定位超時'; break;
+        }
+        window.currentAddress = errorMsg;
+        document.getElementById('address').textContent = '⚠️ ' + errorMsg;
+        document.getElementById('locationHelp').style.display = 'block';
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
+
+  window.retryLocation = function() { window.getLocation(); };
+  window.getLocation();
+
+  // 讀取本地記錄
+  window.loadRecords = function() {
+    const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
+    const container = document.getElementById('records');
+    if (data.length === 0) {
+      container.innerHTML = '<h2>📌 簽到記錄</h2><p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
+      return;
+    }
+    container.innerHTML = '<h2>📌 簽到記錄（共 ' + data.length + ' 筆）</h2>' +
+      data.map((r, i) => `
+        <div class="record-item">
+          <div class="r-name">${i+1}. ${r.name}</div>
+          <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
+          ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
+        </div>
+      `).join('');
+  };
+  window.loadRecords();
+
+  // 打卡
+  window.signIn = async function() {
+    const name = document.getElementById('name').value.trim();
+    const note = document.getElementById('note').value.trim();
+    const status = document.getElementById('status');
+
+    if (!name) {
+      status.className = 'status error';
+      status.textContent = '⚠️ 請輸入姓名';
+      setTimeout(() => status.className = 'status', 2000);
+      return;
+    }
+
+    const time = document.getElementById('time').textContent;
+    const record = { name, time, address: window.currentAddress, note, timestamp: new Date().toISOString() };
+
+    // 存本地
+    const localData = JSON.parse(localStorage.getItem('signRecords') || '[]');
+    localData.unshift(record);
+    localStorage.setItem('signRecords', JSON.stringify(localData));
+
+    document.getElementById('name').value = '';
+    document.getElementById('note').value = '';
+
+    // 發到 Firebase
+    status.className = 'status loading';
+    status.textContent = '📤 儲存中...';
+    try {
+      await addDoc(collection(db, 'signin'), record);
+      status.className = 'status success';
+      status.textContent = '✅ 簽到成功！';
+      setTimeout(() => status.className = 'status', 2000);
+    } catch (e) {
+      console.error(e);
+      status.className = 'status success';
+      status.textContent = '✅ 簽到成功！（本地模式）';
+      setTimeout(() => status.className = 'status', 2000);
+    }
+
+    window.loadRecords();
+  };
+
+  // 匯出CSV
+  window.exportCSV = function() {
+    const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
+    if (data.length === 0) {
+      alert('暫無記錄可匯出');
+      return;
+    }
+    const csv = '\uFEFF姓名,打卡時間,打卡地點,備注\n' +
+      data.map(r => `"${r.name}","${r.time}","${r.address}","${r.note || ''}"`).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '簽到記錄_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 清除記錄
+  window.clearRecords = function() {
+    const pw = prompt('請輸入密碼以清除所有記錄：');
+    if (pw === '1119') {
+      if (confirm('⚠️ 確定要清除所有簽到記錄嗎？此操作無法恢復！')) {
+        localStorage.removeItem('signRecords');
+        window.loadRecords();
+        alert('✅ 記錄已清除');
+      }
+    } else if (pw !== null) {
+      alert('❌ 密碼錯誤');
+    }
+  };
+
+  // 載入雲端記錄（管理員用）
+  window.loadCloudRecords = async function() {
+    try {
+      const q = query(collection(db, 'signin'), orderBy('timestamp', 'desc'));
+      const snapshot = await getDocs(q);
+      const container = document.getElementById('adminList');
+      if (snapshot.empty) {
+        container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
+        return;
+      }
+      container.innerHTML = snapshot.docs.map((doc, i) => {
+        const r = doc.data();
+        return `<div class="record-item">
+          <div class="r-name">${i+1}. ${r.name}</div>
+          <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
+          ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      console.error(e);
+      document.getElementById('adminList').innerHTML = '<p style="color:red;text-align:center;">載入失敗</p>';
+    }
+  };
+
+  // 密碼解鎖管理員面板
+  window.showAdmin = function() {
+    const pw = prompt('請輸入管理員密碼：');
+    if (pw === '1119') {
+      document.getElementById('adminPanel').style.display = 'block';
+      window.loadCloudRecords();
+    }
+  };
+
+  // 3秒後嘗試顯示admin面板入口（低調）
+  setTimeout(() => {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'text-align:center;margin-top:20px;';
+    hint.innerHTML = '<a href="javascript:void(0)" onclick="showAdmin()" style="color:#999;font-size:0.75rem;text-decoration:none;">管理員</a>';
+    document.querySelector('.container').appendChild(hint);
+  }, 3000);
 </script>
 </body>
 </html>
