@@ -113,7 +113,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, push, get, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, push, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBw38H4pu7C5sLmI73VWieXB8veDQqKANU",
@@ -298,7 +298,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   // 載入雲端記錄（管理員用）
   window.loadCloudRecords = async function() {
     try {
-      const snapshot = await get(query(ref(db, 'signin'), orderByChild('timestamp')));
+      const snapshot = await get(ref(db, 'signin'));
       const container = document.getElementById('adminList');
       if (!snapshot.exists()) {
         container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
@@ -318,7 +318,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
       }).join('');
     } catch (e) {
       console.error(e);
-      document.getElementById('adminList').innerHTML = '<p style="color:red;text-align:center;">載入失敗</p>';
+      document.getElementById('adminList').innerHTML = '<p style="color:red;text-align:center;">載入失敗: ' + e.message + '</p>';
     }
   };
 
