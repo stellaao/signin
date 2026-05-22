@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>兼職簽到表</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif; background: #f5f5f5; min-height: 100vh; padding: 20px; }
+.container { max-width: 480px; margin: 0 auto; }
+h1 { text-align: center; color: #333; margin-bottom: 20px; font-size: 1.5rem; }
+
+.card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+.info-row { display: flex; align-items: center; margin-bottom: 14px; }
+.info-row:last-of-type { margin-bottom: 0; }
+.info-row.location-row { margin-bottom: 0; }
+label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
+.value { color: #333; font-size: 1rem; flex: 1; }
+.value.highlight { color: #007AFF; font-weight: 600; }
+
+.btn { width: 100%; padding: 16px; font-size: 1.1rem; border: none; border-radius: 10px; cursor: pointer; margin-top: 16px; transition: transform 0.1s, opacity 0.2s; }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-sign { background: #34C759; color: #fff; }
+.btn-sign:hover:not(:disabled) { background: #2db84d; }
+
+.btn-export { background: #007AFF; color: #fff; margin-top: 10px; }
+.btn-export:hover { background: #0064d9; }
+
+.btn-clear { background: #ff3b30; color: #fff; margin-top: 10px; }
+.btn-clear:hover { background: #d63028; }
+
+#records { margin-top: 20px; }
+#records h2 { font-size: 1rem; color: #333; margin-bottom: 10px; }
+.record-item { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-size: 0.9rem; }
+.record-item .r-name { font-weight: 600; color: #333; margin-bottom: 4px; }
+.record-item .r-detail { color: #666; font-size: 0.8rem; }
+.record-item .r-note { color: #888; font-size: 0.8rem; font-style: italic; margin-top: 2px; }
+
+.status { text-align: center; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 0.9rem; display: none; }
+.status.success { background: #d4edda; color: #155724; display: block; }
+.status.error { background: #f8d7da; color: #721c24; display: block; }
+.status.loading { background: #fff3cd; color: #856404; display: block; }
+
+#map { width: 100%; height: 120px; border-radius: 8px; margin-top: 8px; display: none; background: #eee; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📋 兼職簽到表</h1>
+
+  <div class="card">
+    <div class="info-row">
+      <label>姓名</label>
+      <input type="text" id="name" class="value" placeholder="請輸入姓名" autocomplete="off">
+    </div>
+    <div class="info-row">
+      <label>打卡時間</label>
+      <span id="time" class="value highlight">載入中...</span>
+    </div>
+    <div class="info-row location-row">
+      <label>打卡地點</label>
+      <span id="address" class="value">定位中...</span>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="card">
+    <div class="info-row">
+      <label>備注</label>
+      <input type="text" id="note" class="value" placeholder="選填" autocomplete="off">
+    </div>
+    <button class="btn btn-sign" id="signBtn" onclick="signIn()">✅ 打卡簽到</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <button class="btn btn-export" onclick="exportCSV()">📥 匯出 CSV</button>
+  <button class="btn btn-clear" onclick="clearRecords()">🗑️ 清除記錄</button>
+
+  <div id="records"></div>
+</div>
+
+<script>
+let currentPosition = null;
+let currentAddress = '定位失敗';
+
+// 初始化時間
+function updateTime() {
+  const now = new Date();
+  const timeStr = now.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('time').textContent = timeStr;
+}
+updateTime();
+setInterval(updateTime, 1000);
+
+// 自動定位
+function getLocation() {
+  document.getElementById('address').textContent = '定位中...';
+  if (!navigator.geolocation) {
+    currentAddress = '不支援定位';
+    document.getElementById('address').textContent = currentAddress;
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      document.getElementById('address').textContent = `📍 ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)}`;
+      // 反向地理編碼
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${currentPosition.lat}&lon=${currentPosition.lng}&format=json&accept-language=zh`)
+        .then(r => r.json())
+        .then(data => {
+          const addr = data.address;
+          const parts = [];
+          if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+          if (addr.suburb) parts.push(addr.suburb);
+          if (addr.road) parts.push(addr.road);
+          if (parts.length > 0) {
+            currentAddress = parts.join('');
+          } else if (data.display_name) {
+            currentAddress = data.display_name.split(',')[0];
+          }
+          document.getElementById('address').textContent = '📍 ' + currentAddress;
+        })
+        .catch(() => {
+          document.getElementById('address').textContent = '📍 ' + currentAddress;
+        });
+    },
+    () => {
+      currentAddress = '定位失敗';
+      document.getElementById('address').textContent = currentAddress;
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+getLocation();
+
+// 讀取記錄
+function loadRecords() {
+  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
+  const container = document.getElementById('records');
+  if (data.length === 0) {
+    container.innerHTML = '<h2>📌 簽到記錄</h2><p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
+    return;
+  }
+  container.innerHTML = '<h2>📌 簽到記錄（共 ' + data.length + ' 筆）</h2>' + 
+    data.map((r, i) => `
+      <div class="record-item">
+        <div class="r-name">${i+1}. ${r.name}</div>
+        <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
+        ${r.note ? '<div class="r-note">📝 ' + r.note + '</div>' : ''}
+      </div>
+    `).join('');
+}
+loadRecords();
+
+// 打卡
+function signIn() {
+  const name = document.getElementById('name').value.trim();
+  const note = document.getElementById('note').value.trim();
+  const status = document.getElementById('status');
+  
+  if (!name) {
+    status.className = 'status error';
+    status.textContent = '⚠️ 請輸入姓名';
+    setTimeout(() => status.className = 'status', 2000);
+    return;
+  }
+  
+  const time = document.getElementById('time').textContent;
+  const record = { name, time, address: currentAddress, note };
+  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
+  data.unshift(record);
+  localStorage.setItem('signRecords', JSON.stringify(data));
+  
+  document.getElementById('name').value = '';
+  document.getElementById('note').value = '';
+  status.className = 'status success';
+  status.textContent = '✅ 簽到成功！';
+  setTimeout(() => status.className = 'status', 2000);
+  
+  loadRecords();
+}
+
+// 匯出CSV
+function exportCSV() {
+  const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
+  if (data.length === 0) {
+    alert('暫無記錄可匯出');
+    return;
+  }
+  const csv = '\uFEFF姓名,打卡時間,打卡地點,備注\n' + 
+    data.map(r => `"${r.name}","${r.time}","${r.address}","${r.note || ''}"`).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '簽到記錄_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 清除記錄
+function clearRecords() {
+  if (confirm('確定要清除所有簽到記錄嗎？')) {
+    localStorage.removeItem('signRecords');
+    loadRecords();
+  }
+}
+</script>
+</body>
+</html>
