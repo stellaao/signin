@@ -113,11 +113,12 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getDatabase, ref, push, get, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBw38H4pu7C5sLmI73VWieXB8veDQqKANU",
     authDomain: "signin-b4b1c.firebaseapp.com",
+    databaseURL: "https://signin-b4b1c-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "signin-b4b1c",
     storageBucket: "signin-b4b1c.firebasestorage.app",
     messagingSenderId: "114524535002",
@@ -126,7 +127,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = getDatabase(app);
 
   // 初始化時間
   function updateTime() {
@@ -242,11 +243,11 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     document.getElementById('name').value = '';
     document.getElementById('note').value = '';
 
-    // 發到 Firebase
+    // 發到 Firebase Realtime Database
     status.className = 'status loading';
     status.textContent = '📤 儲存中...';
     try {
-      await addDoc(collection(db, 'signin'), record);
+      await push(ref(db, 'signin'), record);
       status.className = 'status success';
       status.textContent = '✅ 簽到成功！';
       setTimeout(() => status.className = 'status', 2000);
@@ -295,15 +296,18 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   // 載入雲端記錄（管理員用）
   window.loadCloudRecords = async function() {
     try {
-      const q = query(collection(db, 'signin'), orderBy('timestamp', 'desc'));
-      const snapshot = await getDocs(q);
+      const snapshot = await get(query(ref(db, 'signin'), orderByChild('timestamp')));
       const container = document.getElementById('adminList');
-      if (snapshot.empty) {
+      if (!snapshot.exists()) {
         container.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">暫無記錄</p>';
         return;
       }
-      container.innerHTML = snapshot.docs.map((doc, i) => {
-        const r = doc.data();
+      const records = [];
+      snapshot.forEach(child => {
+        records.push(child.val());
+      });
+      records.reverse();
+      container.innerHTML = records.map((r, i) => {
         return `<div class="record-item">
           <div class="r-name">${i+1}. ${r.name}</div>
           <div class="r-detail">🕐 ${r.time} | ${r.address}</div>
