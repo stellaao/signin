@@ -63,6 +63,14 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     <div class="info-row location-row">
       <label>打卡地點</label>
       <span id="address" class="value">定位中...</span>
+      <button onclick="retryLocation()" style="margin-left:8px;padding:4px 10px;font-size:0.75rem;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;">重試</button>
+    </div>
+    <div id="locationHelp" style="display:none;background:#fff3cd;border-radius:8px;padding:12px;margin-top:8px;font-size:0.85rem;color:#856404;">
+      <strong>📍 定位失敗</strong><br>
+      請允許瀏覽器使用您的位置：<br>
+      • <strong>Chrome</strong>：點擊位址欄左側的 🔒 → 位置 → 允許<br>
+      • <strong>Safari</strong>：點擊左上角 🔒 → 網站設定 → 允許位置<br>
+      • <strong>手機</strong>：於地址欄按住 🔄 或 ℹ️ → 位置 → 允許
     </div>
     <div id="map"></div>
   </div>
@@ -98,6 +106,7 @@ setInterval(updateTime, 1000);
 // 自動定位
 function getLocation() {
   document.getElementById('address').textContent = '定位中...';
+  document.getElementById('locationHelp').style.display = 'none';
   if (!navigator.geolocation) {
     currentAddress = '不支援定位';
     document.getElementById('address').textContent = currentAddress;
@@ -107,6 +116,7 @@ function getLocation() {
     (pos) => {
       currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       document.getElementById('address').textContent = `📍 ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)}`;
+      document.getElementById('locationHelp').style.display = 'none';
       // 反向地理編碼
       fetch(`https://nominatim.openstreetmap.org/reverse?lat=${currentPosition.lat}&lon=${currentPosition.lng}&format=json&accept-language=zh`)
         .then(r => r.json())
@@ -130,9 +140,14 @@ function getLocation() {
     () => {
       currentAddress = '定位失敗';
       document.getElementById('address').textContent = currentAddress;
+      document.getElementById('locationHelp').style.display = 'block';
     },
     { enableHighAccuracy: true, timeout: 10000 }
   );
+}
+
+function retryLocation() {
+  getLocation();
 }
 getLocation();
 
