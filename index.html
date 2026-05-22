@@ -222,14 +222,18 @@ function signIn() {
   document.getElementById('name').value = '';
   document.getElementById('note').value = '';
 
-  // 發送到 Google Sheets
+  // 發送到 Google Sheets (用URL參數格式)
   status.className = 'status loading';
   status.textContent = '📤 儲存中...';
-  fetch(SHEETS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(record)
+  const params = new URLSearchParams({
+    name: name,
+    time: time,
+    address: currentAddress,
+    note: note
+  });
+  fetch(SHEETS_URL + '?' + params.toString(), {
+    method: 'GET',
+    mode: 'no-cors'
   })
   .then(() => {
     status.className = 'status success';
@@ -237,7 +241,6 @@ function signIn() {
     setTimeout(() => status.className = 'status', 2000);
   })
   .catch(() => {
-    // 即使GS失敗，本地仍然有記錄
     status.className = 'status success';
     status.textContent = '✅ 簽到成功！（離線模式）';
     setTimeout(() => status.className = 'status', 2000);
