@@ -197,31 +197,52 @@ function loadRecords() {
 }
 loadRecords();
 
+// Google Sheets Apps Script URL
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwamEAAUN5Y-OTym23Bxr_ZkNcuBO-VbReQ-_vbPR-5S2oWo2mhzOhc__bf2dPL28K_/exec';
+
 // 打卡
 function signIn() {
   const name = document.getElementById('name').value.trim();
   const note = document.getElementById('note').value.trim();
   const status = document.getElementById('status');
-  
+
   if (!name) {
     status.className = 'status error';
     status.textContent = '⚠️ 請輸入姓名';
     setTimeout(() => status.className = 'status', 2000);
     return;
   }
-  
+
   const time = document.getElementById('time').textContent;
   const record = { name, time, address: currentAddress, note };
   const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
   data.unshift(record);
   localStorage.setItem('signRecords', JSON.stringify(data));
-  
+
   document.getElementById('name').value = '';
   document.getElementById('note').value = '';
-  status.className = 'status success';
-  status.textContent = '✅ 簽到成功！';
-  setTimeout(() => status.className = 'status', 2000);
-  
+
+  // 發送到 Google Sheets
+  status.className = 'status loading';
+  status.textContent = '📤 儲存中...';
+  fetch(SHEETS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record)
+  })
+  .then(() => {
+    status.className = 'status success';
+    status.textContent = '✅ 簽到成功！';
+    setTimeout(() => status.className = 'status', 2000);
+  })
+  .catch(() => {
+    // 即使GS失敗，本地仍然有記錄
+    status.className = 'status success';
+    status.textContent = '✅ 簽到成功！（離線模式）';
+    setTimeout(() => status.className = 'status', 2000);
+  });
+
   loadRecords();
 }
 
