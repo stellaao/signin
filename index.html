@@ -85,7 +85,6 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
   </div>
 
   <button class="btn btn-export" onclick="exportCSV()">📥 匯出 CSV</button>
-  <button class="btn btn-clear" onclick="clearRecords()">🗑️ 清除記錄</button>
 
   <div id="records"></div>
 </div>
@@ -216,13 +215,7 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
-// 清除記錄
-function clearRecords() {
-  if (confirm('確定要清除所有簽到記錄嗎？')) {
-    localStorage.removeItem('signRecords');
-    loadRecords();
-  }
-}
+
 </script>
 </body>
 </html>
