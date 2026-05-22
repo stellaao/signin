@@ -66,11 +66,21 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
       <button onclick="retryLocation()" style="margin-left:8px;padding:4px 10px;font-size:0.75rem;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;">重試</button>
     </div>
     <div id="locationHelp" style="display:none;background:#fff3cd;border-radius:8px;padding:12px;margin-top:8px;font-size:0.85rem;color:#856404;">
-      <strong>📍 定位失敗</strong><br>
-      請允許瀏覽器使用您的位置：<br>
-      • <strong>Chrome</strong>：點擊位址欄左側的 🔒 → 位置 → 允許<br>
-      • <strong>Safari</strong>：點擊左上角 🔒 → 網站設定 → 允許位置<br>
-      • <strong>手機</strong>：於地址欄按住 🔄 或 ℹ️ → 位置 → 允許
+      <strong>📍 定位失敗</strong><br><br>
+      <strong>請確認以下設定：</strong><br><br>
+      <strong>🔵 Chrome 電腦版：</strong><br>
+      1. 撳擊位址欄左側的 🔒 或 🌐 圖標<br>
+      2. 選擇「網站設定」<br>
+      3. 位置 → 改為「允許」<br>
+      4. 重新整理頁面<br><br>
+      <strong>🟢 Safari Mac 版：</strong><br>
+      1. 右上角 Safari → 偏好設定 → 網站<br>
+      2. 選擇「位置」<br>
+      3. 找到此網站 → 允許<br>
+      4. 重新整理頁面<br><br>
+      <strong>📱 iPhone / Android：</strong><br>
+      1. 確保瀏覽器有取位置權限（設定 → 應用程式 → 瀏覽器 → 位置）<br>
+      2. 重新整理頁面後點擊「允許」
     </div>
     <div id="map"></div>
   </div>
@@ -107,11 +117,22 @@ setInterval(updateTime, 1000);
 function getLocation() {
   document.getElementById('address').textContent = '定位中...';
   document.getElementById('locationHelp').style.display = 'none';
+
+  // 檢查是否為安全上下文（HTTPS）
+  if (!window.isSecureContext) {
+    currentAddress = '需要 HTTPS';
+    document.getElementById('address').textContent = '⚠️ 需要 HTTPS';
+    document.getElementById('locationHelp').innerHTML = '<strong>⚠️ 需要安全連線</strong><br>定位功能需要 HTTPS 連線。<br>請確認網址以 https:// 開頭。';
+    document.getElementById('locationHelp').style.display = 'block';
+    return;
+  }
+
   if (!navigator.geolocation) {
     currentAddress = '不支援定位';
     document.getElementById('address').textContent = currentAddress;
     return;
   }
+
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -137,12 +158,18 @@ function getLocation() {
           document.getElementById('address').textContent = '📍 ' + currentAddress;
         });
     },
-    () => {
-      currentAddress = '定位失敗';
-      document.getElementById('address').textContent = currentAddress;
+    (error) => {
+      let errorMsg = '定位失敗';
+      switch(error.code) {
+        case 1: errorMsg = '位置權限被拒絕'; break;
+        case 2: errorMsg = '位置無法取得'; break;
+        case 3: errorMsg = '定位超時'; break;
+      }
+      currentAddress = errorMsg;
+      document.getElementById('address').textContent = '⚠️ ' + errorMsg;
       document.getElementById('locationHelp').style.display = 'block';
     },
-    { enableHighAccuracy: true, timeout: 10000 }
+    { enableHighAccuracy: true, timeout: 15000 }
   );
 }
 
