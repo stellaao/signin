@@ -228,7 +228,8 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     if (!name) {
       status.className = 'status error';
       status.textContent = '⚠️ 請輸入姓名';
-      setTimeout(() => status.className = 'status', 2000);
+      status.style.display = 'block';
+      setTimeout(() => { status.className = 'status'; status.style.display = 'none'; }, 2000);
       return;
     }
 
@@ -246,18 +247,19 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     // 發到 Firebase Realtime Database
     status.className = 'status loading';
     status.textContent = '📤 儲存中...';
+    status.style.display = 'block';
+
     try {
       await push(ref(db, 'signin'), record);
       status.className = 'status success';
       status.textContent = '✅ 簽到成功！';
-      setTimeout(() => status.className = 'status', 2000);
     } catch (e) {
-      console.error(e);
-      status.className = 'status success';
-      status.textContent = '✅ 簽到成功！（本地模式）';
-      setTimeout(() => status.className = 'status', 2000);
+      console.error('Firebase error:', e);
+      status.className = 'status error';
+      status.textContent = '❌ 儲存失敗：' + e.message;
     }
 
+    setTimeout(() => { status.className = 'status'; status.style.display = 'none'; status.textContent = ''; }, 3000);
     window.loadRecords();
   };
 
