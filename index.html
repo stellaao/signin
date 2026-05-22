@@ -105,9 +105,10 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 
   <div id="adminPanel">
     <h2>📊 所有簽到記錄（來自雲端）</h2>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
       <button onclick="loadCloudRecords()" style="padding:8px 16px;background:#007AFF;color:#fff;border:none;border-radius:6px;cursor:pointer;">🔄 刷新</button>
       <button onclick="exportCloudCSV()" style="padding:8px 16px;background:#34C759;color:#fff;border:none;border-radius:6px;cursor:pointer;">📥 匯出 CSV</button>
+      <button onclick="clearCloudRecords()" style="padding:8px 16px;background:#ff3b30;color:#fff;border:none;border-radius:6px;cursor:pointer;">🗑️ 清除雲端</button>
     </div>
     <div id="adminList"></div>
   </div>
@@ -265,7 +266,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     loadRecords();
   }
 
-  // 匯出CSV
+  // 匯出本地CSV
   function exportCSV() {
     const data = JSON.parse(localStorage.getItem('signRecords') || '[]');
     if (data.length === 0) {
@@ -283,18 +284,17 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     URL.revokeObjectURL(url);
   }
 
-  // 清除記錄
+  // 清除本地記錄
   function clearRecords() {
-    const pw = prompt('請輸入密碼以清除所有記錄：');
-    if (pw === '1119') {
-      if (confirm('⚠️ 確定要清除所有簽到記錄嗎？此操作無法恢復！')) {
-        localStorage.removeItem('signRecords');
-        loadRecords();
-        alert('✅ 記錄已清除');
-      }
-    } else if (pw !== null) {
-      alert('❌ 密碼錯誤');
+    const pw = prompt('請輸入密碼以清除本地記錄：');
+    if (pw !== '1119') {
+      if (pw !== null) alert('❌ 密碼錯誤');
+      return;
     }
+    if (!confirm('⚠️ 確定要清除本地記錄嗎？此操作無法恢復！')) return;
+    localStorage.removeItem('signRecords');
+    loadRecords();
+    alert('✅ 本地記錄已清除');
   }
 
   // 載入雲端記錄（管理員用）
@@ -302,7 +302,7 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
 
   function loadCloudRecords() {
     const container = document.getElementById('adminList');
-    container.innerHTML = '<p style="color:#856404;text-align:center;">載入中...</p>';
+    container.innerHTML = '<p style="color:#856404;text-align:center;padding:20px;">載入中...</p>';
 
     db.ref('signin').once('value')
       .then((snapshot) => {
@@ -344,6 +344,26 @@ label { color: #666; font-size: 0.85rem; width: 70px; flex-shrink: 0; }
     a.download = '簽到記錄_雲端_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '-') + '.csv';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // 清除雲端記錄
+  function clearCloudRecords() {
+    const pw = prompt('請輸入密碼以清除所有雲端記錄：');
+    if (pw !== '1119') {
+      if (pw !== null) alert('❌ 密碼錯誤');
+      return;
+    }
+    if (!confirm('⚠️ 確定要清除所有雲端記錄嗎？此操作無法恢復！')) return;
+
+    db.ref('signin').remove()
+      .then(() => {
+        cloudRecords = [];
+        document.getElementById('adminList').innerHTML = '<p style="color:#999;text-align:center;padding:20px;">已清除所有記錄</p>';
+        alert('✅ 雲端記錄已清除');
+      })
+      .catch((e) => {
+        alert('❌ 清除失敗：' + e.message);
+      });
   }
 
   // 密碼解鎖管理員面板
